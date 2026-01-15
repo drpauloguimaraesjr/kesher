@@ -37,9 +37,13 @@ function initializeFirebase() {
       }),
     });
 
+    // Usar o database 'kesher-db' ao invés do default
+    const databaseId = process.env.FIREBASE_DATABASE_ID || 'kesher-db';
     db = admin.firestore();
+    db.settings({ databaseId });
+    
     initialized = true;
-    console.log('✅ [Firebase] Inicializado com sucesso');
+    console.log(`✅ [Firebase] Inicializado com sucesso (database: ${databaseId})`);
     return db;
 
   } catch (error) {
