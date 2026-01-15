@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# Firebase credentials (NUNCA FAÇA COMMIT DESTES!)
+*serviceAccountKey*.json
+firebase-admin*.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Sessions locais
+sessions/
+auth_info_baileys/
+
+# IDE
+.idea/
+.vscode/
