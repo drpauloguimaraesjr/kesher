@@ -23,9 +23,11 @@ const { rateLimiter } = require("./middleware/rateLimiter");
 const instanceRoutes = require("./routes/instance");
 const messageRoutes = require("./routes/message");
 const webhookRoutes = require("./routes/webhook");
+const zapiRoutes = require("./routes/zapi");
 
-// Manager (para carregar instâncias existentes)
+// Managers
 const manager = require("./services/WhatsAppManager");
+const zapiManager = require("./services/ZAPIManager");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -89,6 +91,9 @@ app.use("/api/message", messageRoutes);
 // Rotas de webhooks
 app.use("/api/webhook", webhookRoutes);
 
+// Rotas Z-API (nova integração estável)
+app.use("/api/zapi", zapiRoutes);
+
 // ========== ERROR HANDLING ==========
 
 // 404
@@ -125,9 +130,13 @@ async function startServer() {
     console.log("🔥 Inicializando Firebase...");
     initializeFirebase();
 
-    // 2. Carrega instâncias existentes
-    console.log("📂 Carregando instâncias existentes...");
+    // 2. Carrega instâncias existentes (Baileys - legacy)
+    console.log("📂 Carregando instâncias Baileys...");
     await manager.loadExistingInstances();
+
+    // 3. Carrega instâncias Z-API
+    console.log("📂 Carregando instâncias Z-API...");
+    await zapiManager.loadExistingInstances();
 
     // 3. Inicia servidor
     app.listen(PORT, () => {

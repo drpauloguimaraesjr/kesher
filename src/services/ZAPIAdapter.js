@@ -1,0 +1,288 @@
+/**
+ * 🔌 Z-API Adapter para Kesher API
+ * Substitui o Baileys pelo Z-API (serviço estável)
+ */
+
+class ZAPIAdapter {
+  constructor(instanceId, token) {
+    this.instanceId = instanceId;
+    this.token = token;
+    this.baseUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}`;
+  }
+
+  /**
+   * Verifica status da conexão
+   */
+  async getStatus() {
+    try {
+      const response = await fetch(`${this.baseUrl}/status`);
+      const data = await response.json();
+      
+      return {
+        success: true,
+        connected: data.connected || false,
+        smartphoneConnected: data.smartphoneConnected || false,
+        session: data.session || null,
+        error: data.error || null
+      };
+    } catch (error) {
+      console.error('[Z-API] Erro ao verificar status:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Obtém QR Code para conexão
+   */
+  async getQRCode() {
+    try {
+      const response = await fetch(`${this.baseUrl}/qr-code`);
+      const data = await response.json();
+      
+      if (data.value) {
+        return {
+          success: true,
+          qrCode: data.value,
+          qrBase64: `data:image/png;base64,${data.value}`
+        };
+      }
+      
+      return { success: false, error: 'QR Code não disponível' };
+    } catch (error) {
+      console.error('[Z-API] Erro ao obter QR Code:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Obtém QR Code como imagem (URL)
+   */
+  async getQRCodeImage() {
+    try {
+      const response = await fetch(`${this.baseUrl}/qr-code/image`);
+      
+      if (response.ok) {
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        return {
+          success: true,
+          qrBase64: `data:image/png;base64,${base64}`
+        };
+      }
+      
+      return { success: false, error: 'QR Code não disponível' };
+    } catch (error) {
+      console.error('[Z-API] Erro ao obter QR Code:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Desconecta a sessão
+   */
+  async disconnect() {
+    try {
+      const response = await fetch(`${this.baseUrl}/disconnect`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      return { success: true, data };
+    } catch (error) {
+      console.error('[Z-API] Erro ao desconectar:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Reinicia a sessão
+   */
+  async restart() {
+    try {
+      const response = await fetch(`${this.baseUrl}/restart`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      return { success: true, data };
+    } catch (error) {
+      console.error('[Z-API] Erro ao reiniciar:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Envia mensagem de texto
+   */
+  async sendTextMessage(phone, message) {
+    try {
+      // Formatar número (remover caracteres especiais, adicionar código país se necessário)
+      const formattedPhone = this.formatPhone(phone);
+      
+      const response = await fetch(`${this.baseUrl}/send-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: formattedPhone,
+          message: message
+        })
+      });
+      
+      const data = await response.json();
+      
+      return {
+        success: !data.error,
+        messageId: data.messageId || data.zapiMessageId,
+        data
+      };
+    } catch (error) {
+      console.error('[Z-API] Erro ao enviar mensagem:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Envia imagem
+   */
+  async sendImageMessage(phone, imageUrl, caption = '') {
+    try {
+      const formattedPhone = this.formatPhone(phone);
+      
+      const response = await fetch(`${this.baseUrl}/send-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: formattedPhone,
+          image: imageUrl,
+          caption: caption
+        })
+      });
+      
+      const data = await response.json();
+      
+      return {
+        success: !data.error,
+        messageId: data.messageId || data.zapiMessageId,
+        data
+      };
+    } catch (error) {
+      console.error('[Z-API] Erro ao enviar imagem:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Envia documento
+   */
+  async sendDocumentMessage(phone, documentUrl, filename = 'document') {
+    try {
+      const formattedPhone = this.formatPhone(phone);
+      
+      const response = await fetch(`${this.baseUrl}/send-document/url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: formattedPhone,
+          document: documentUrl,
+          fileName: filename
+        })
+      });
+      
+      const data = await response.json();
+      
+      return {
+        success: !data.error,
+        messageId: data.messageId || data.zapiMessageId,
+        data
+      };
+    } catch (error) {
+      console.error('[Z-API] Erro ao enviar documento:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Envia áudio
+   */
+  async sendAudioMessage(phone, audioUrl) {
+    try {
+      const formattedPhone = this.formatPhone(phone);
+      
+      const response = await fetch(`${this.baseUrl}/send-audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: formattedPhone,
+          audio: audioUrl
+        })
+      });
+      
+      const data = await response.json();
+      
+      return {
+        success: !data.error,
+        messageId: data.messageId || data.zapiMessageId,
+        data
+      };
+    } catch (error) {
+      console.error('[Z-API] Erro ao enviar áudio:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Obtém informações do contato
+   */
+  async getContactInfo(phone) {
+    try {
+      const formattedPhone = this.formatPhone(phone);
+      
+      const response = await fetch(`${this.baseUrl}/phone-exists/${formattedPhone}`);
+      const data = await response.json();
+      
+      return {
+        success: true,
+        exists: data.exists || false,
+        data
+      };
+    } catch (error) {
+      console.error('[Z-API] Erro ao verificar contato:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Obtém foto do perfil
+   */
+  async getProfilePicture(phone) {
+    try {
+      const formattedPhone = this.formatPhone(phone);
+      
+      const response = await fetch(`${this.baseUrl}/profile-picture/${formattedPhone}`);
+      const data = await response.json();
+      
+      return {
+        success: true,
+        imageUrl: data.link || null
+      };
+    } catch (error) {
+      console.error('[Z-API] Erro ao obter foto:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Formata número de telefone
+   */
+  formatPhone(phone) {
+    // Remove tudo que não é número
+    let cleaned = phone.toString().replace(/\D/g, '');
+    
+    // Se não começar com 55, adiciona
+    if (!cleaned.startsWith('55')) {
+      cleaned = '55' + cleaned;
+    }
+    
+    return cleaned;
+  }
+}
+
+module.exports = ZAPIAdapter;
