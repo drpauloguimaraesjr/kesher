@@ -236,20 +236,16 @@ function transformZAPIPayload(zapiEvent) {
   // Log do evento original para debug
   console.log('📥 [Z-API Raw Event]:', JSON.stringify(zapiEvent, null, 2));
 
-  // Z-API envia diferentes tipos de eventos
-  // Evento de mensagem recebida tem a estrutura:
-  // { phone, text, messageId, isFromMe, senderName, etc }
-  
-  // Se for evento de status (conectado/desconectado), ignorar
-  if (zapiEvent.status || zapiEvent.event === 'status') {
+  // Ignorar callbacks de status de entrega (não são mensagens)
+  const ignoreTypes = ['DeliveryCallback', 'MessageStatusCallback', 'SentCallback'];
+  if (ignoreTypes.includes(zapiEvent.type)) {
+    console.log('⏭️ [Webhook] Evento ignorado (callback de status):', zapiEvent.type);
     return null;
   }
 
-  // Verificar se é uma mensagem
-  const isMessage = zapiEvent.text || zapiEvent.image || zapiEvent.audio || zapiEvent.document || zapiEvent.video;
-  
-  if (!isMessage) {
-    console.log('⏭️ [Webhook] Evento ignorado (não é mensagem):', zapiEvent.event || zapiEvent.type);
+  // Verificar se é um evento de conexão/desconexão (não é mensagem)
+  if (zapiEvent.event === 'status' || zapiEvent.event === 'connection') {
+    console.log('⏭️ [Webhook] Evento ignorado (evento de conexão):', zapiEvent.event);
     return null;
   }
 
@@ -259,39 +255,74 @@ function transformZAPIPayload(zapiEvent) {
     return null;
   }
 
-  // Determinar tipo de mensagem
+  // Verificar se é uma mensagem (tem conteúdo de texto ou mídia)
+  const hasText = zapiEvent.text;
+  const hasImage = zapiEvent.image;
+  const hasAudio = zapiEvent.audio;
+  const hasVideo = zapiEvent.video;
+  const hasDocument = zapiEvent.document;
+  const hasSticker = zapiEvent.sticker;
+  const hasVoice = zapiEvent.ptt || zapiEvent.ptv; // PTT = Push To Talk (áudio de voz)
+
+  const isMessage = hasText || hasImage || hasAudio || hasVideo || hasDocument || hasSticker || hasVoice;
+  
+  if (!isMessage) {
+    console.log('⏭️ [Webhook] Evento ignorado (não é mensagem):', zapiEvent.type || 'unknown');
+    return null;
+  }
+
+  // Determinar tipo de mensagem e extrair conteúdo
   let type = 'text';
   let message = '';
   let mediaUrl = null;
+  let thumbnailUrl = null;
+  let mimeType = null;
 
-  if (zapiEvent.text) {
+  if (hasText) {
     type = 'text';
-    message = zapiEvent.text.message || zapiEvent.text || '';
-  } else if (zapiEvent.image) {
+    // O texto pode vir como string ou como objeto
+    if (typeof zapiEvent.text === 'object' && zapiEvent.text.message) {
+      message = zapiEvent.text.message;
+    } else if (typeof zapiEvent.text === 'string') {
+      message = zapiEvent.text;
+    } else {
+      message = String(zapiEvent.text);
+    }
+  } else if (hasImage) {
     type = 'image';
     message = zapiEvent.image.caption || '';
     mediaUrl = zapiEvent.image.imageUrl || zapiEvent.image.url || null;
-  } else if (zapiEvent.audio) {
+    thumbnailUrl = zapiEvent.image.thumbnailUrl || null;
+    mimeType = zapiEvent.image.mimeType || 'image/jpeg';
+    console.log('🖼️ [Webhook] Imagem recebida:', { mediaUrl, caption: message });
+  } else if (hasAudio || hasVoice) {
     type = 'audio';
-    mediaUrl = zapiEvent.audio.audioUrl || zapiEvent.audio.url || null;
-  } else if (zapiEvent.document) {
+    const audioData = zapiEvent.audio || zapiEvent.ptt || zapiEvent.ptv || {};
+    mediaUrl = audioData.audioUrl || audioData.url || null;
+    mimeType = audioData.mimeType || 'audio/ogg';
+    console.log('🎵 [Webhook] Áudio recebido:', { mediaUrl });
+  } else if (hasVideo) {
+    type = 'video';
+    message = zapiEvent.video.caption || '';
+    mediaUrl = zapiEvent.video.videoUrl || zapiEvent.video.url || null;
+    thumbnailUrl = zapiEvent.video.thumbnailUrl || null;
+    mimeType = zapiEvent.video.mimeType || 'video/mp4';
+    console.log('🎬 [Webhook] Vídeo recebido:', { mediaUrl, caption: message });
+  } else if (hasDocument) {
     type = 'document';
     mediaUrl = zapiEvent.document.documentUrl || zapiEvent.document.url || null;
-  } else if (zapiEvent.video) {
-    type = 'video';
-    mediaUrl = zapiEvent.video.videoUrl || zapiEvent.video.url || null;
+    mimeType = zapiEvent.document.mimeType || 'application/octet-stream';
+    message = zapiEvent.document.fileName || zapiEvent.document.caption || '';
+    console.log('📄 [Webhook] Documento recebido:', { mediaUrl, fileName: message });
+  } else if (hasSticker) {
+    type = 'sticker';
+    mediaUrl = zapiEvent.sticker.stickerUrl || zapiEvent.sticker.url || null;
+    console.log('🎨 [Webhook] Sticker recebido:', { mediaUrl });
   }
 
-  // Extrair número do telefone (remover @s.whatsapp.net se presente)
+  // Extrair número do telefone (remover sufixos do WhatsApp)
   let phone = zapiEvent.phone || zapiEvent.from || zapiEvent.chatId || '';
-  phone = phone.toString().replace('@s.whatsapp.net', '').replace('@c.us', '');
-  
-  // Se o texto está em formato diferente
-  if (typeof zapiEvent.text === 'object' && zapiEvent.text.message) {
-    message = zapiEvent.text.message;
-  } else if (typeof zapiEvent.text === 'string') {
-    message = zapiEvent.text;
-  }
+  phone = phone.toString().replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@g.us', '');
 
   // Montar payload no formato esperado pelo NutriBuddy
   const payload = {
@@ -299,14 +330,18 @@ function transformZAPIPayload(zapiEvent) {
     message: message,
     messageId: zapiEvent.messageId || zapiEvent.id || `msg-${Date.now()}`,
     type: type,
-    senderName: zapiEvent.senderName || zapiEvent.pushName || zapiEvent.notifyName || 'Desconhecido',
+    senderName: zapiEvent.senderName || zapiEvent.pushName || zapiEvent.notifyName || zapiEvent.chatName || 'Desconhecido',
     mediaUrl: mediaUrl,
+    thumbnailUrl: thumbnailUrl,
+    mimeType: mimeType,
     timestamp: zapiEvent.momment || zapiEvent.timestamp || new Date().toISOString(),
-    // Dados extras para debug
+    // Dados extras
+    senderPhoto: zapiEvent.senderPhoto || zapiEvent.photo || null,
+    isGroup: zapiEvent.isGroup || false,
     _raw: {
       chatId: zapiEvent.chatId,
       instanceId: zapiEvent.instanceId,
-      isGroup: zapiEvent.isGroup || false
+      connectedPhone: zapiEvent.connectedPhone
     }
   };
 
