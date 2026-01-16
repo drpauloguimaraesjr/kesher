@@ -9,7 +9,12 @@
     "dev": "nodemon src/server.js",
     "test": "node test/test-api.js"
   },
-  "keywords": ["whatsapp", "api", "baileys", "automation"],
+  "keywords": [
+    "whatsapp",
+    "api",
+    "baileys",
+    "automation"
+  ],
   "author": "NutriBuddy Team",
   "license": "MIT",
   "engines": {
