@@ -76,6 +76,30 @@ app.get("/health", (req, res) => {
   });
 });
 
+// ========== WEBHOOKS PÚBLICOS (Z-API não envia API Key) ==========
+
+// Importar handlers de webhook diretamente
+const zapiWebhookRouter = require('./routes/zapi');
+
+// POST /api/zapi/webhook - recebe eventos do Z-API
+app.post("/api/zapi/webhook", (req, res, next) => {
+  // Redirecionar para o router de zapi
+  req.url = '/webhook';
+  zapiWebhookRouter(req, res, next);
+});
+
+// POST /api/zapi/webhook/test - testar webhook
+app.post("/api/zapi/webhook/test", (req, res, next) => {
+  req.url = '/webhook/test';
+  zapiWebhookRouter(req, res, next);
+});
+
+// GET /api/zapi/webhook - health check do webhook
+app.get("/api/zapi/webhook", (req, res, next) => {
+  req.url = '/webhook';
+  zapiWebhookRouter(req, res, next);
+});
+
 // ========== ROTAS PROTEGIDAS ==========
 
 // Autenticação via API Key
