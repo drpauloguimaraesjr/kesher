@@ -220,4 +220,67 @@ router.post('/message/send/document', async (req, res) => {
   }
 });
 
+// ============================================================
+// WEBHOOKS - Recebe eventos do Z-API e repassa para apps
+// ============================================================
+
+// URLs dos apps que devem receber os webhooks
+const WEBHOOK_DESTINATIONS = [
+  process.env.NUTRIBUDDY_WEBHOOK_URL || 'https://web-production-c9eaf.up.railway.app/api/whatsapp-kesher/webhook'
+];
+
+/**
+ * POST /api/zapi/webhook
+ * Recebe webhooks do Z-API e repassa para os apps configurados
+ */
+router.post('/webhook', async (req, res) => {
+  try {
+    const event = req.body;
+    
+    console.log(`📨 [Kesher Webhook] Evento recebido:`, event.type || 'unknown');
+
+    // Repassa para todos os destinos configurados
+    const forwardPromises = WEBHOOK_DESTINATIONS.map(async (url) => {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(event)
+        });
+        console.log(`✅ [Kesher Webhook] Repassado para ${url}: ${response.status}`);
+        return { url, success: true, status: response.status };
+      } catch (error) {
+        console.error(`❌ [Kesher Webhook] Erro ao repassar para ${url}:`, error.message);
+        return { url, success: false, error: error.message };
+      }
+    });
+
+    const results = await Promise.all(forwardPromises);
+
+    // Responde ao Z-API que recebeu com sucesso
+    res.status(200).json({
+      success: true,
+      message: 'Webhook processado',
+      forwarded: results
+    });
+
+  } catch (error) {
+    console.error('❌ [Kesher Webhook] Erro:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/zapi/webhook
+ * Verificação de saúde do webhook (alguns serviços fazem GET para verificar)
+ */
+router.get('/webhook', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Kesher Webhook está ativo',
+    destinations: WEBHOOK_DESTINATIONS.length
+  });
+});
+
 module.exports = router;
+
