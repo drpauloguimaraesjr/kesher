@@ -4,10 +4,22 @@
  */
 
 class ZAPIAdapter {
-  constructor(instanceId, token) {
+  constructor(instanceId, token, clientToken = null) {
     this.instanceId = instanceId;
     this.token = token;
+    this.clientToken = clientToken || process.env.ZAPI_CLIENT_TOKEN;
     this.baseUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}`;
+  }
+
+  /**
+   * Retorna headers padrão com Client-Token
+   */
+  getHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (this.clientToken) {
+      headers['Client-Token'] = this.clientToken;
+    }
+    return headers;
   }
 
   /**
@@ -15,7 +27,9 @@ class ZAPIAdapter {
    */
   async getStatus() {
     try {
-      const response = await fetch(`${this.baseUrl}/status`);
+      const response = await fetch(`${this.baseUrl}/status`, {
+        headers: this.getHeaders()
+      });
       const data = await response.json();
       
       return {
@@ -36,7 +50,9 @@ class ZAPIAdapter {
    */
   async getQRCode() {
     try {
-      const response = await fetch(`${this.baseUrl}/qr-code`);
+      const response = await fetch(`${this.baseUrl}/qr-code`, {
+        headers: this.getHeaders()
+      });
       const data = await response.json();
       
       if (data.value) {
@@ -59,7 +75,9 @@ class ZAPIAdapter {
    */
   async getQRCodeImage() {
     try {
-      const response = await fetch(`${this.baseUrl}/qr-code/image`);
+      const response = await fetch(`${this.baseUrl}/qr-code/image`, {
+        headers: this.getHeaders()
+      });
       
       if (response.ok) {
         const buffer = await response.arrayBuffer();
@@ -83,7 +101,8 @@ class ZAPIAdapter {
   async disconnect() {
     try {
       const response = await fetch(`${this.baseUrl}/disconnect`, {
-        method: 'POST'
+        method: 'POST',
+        headers: this.getHeaders()
       });
       const data = await response.json();
       return { success: true, data };
@@ -99,7 +118,8 @@ class ZAPIAdapter {
   async restart() {
     try {
       const response = await fetch(`${this.baseUrl}/restart`, {
-        method: 'POST'
+        method: 'POST',
+        headers: this.getHeaders()
       });
       const data = await response.json();
       return { success: true, data };
@@ -119,7 +139,7 @@ class ZAPIAdapter {
       
       const response = await fetch(`${this.baseUrl}/send-text`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           phone: formattedPhone,
           message: message
@@ -148,7 +168,7 @@ class ZAPIAdapter {
       
       const response = await fetch(`${this.baseUrl}/send-image`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           phone: formattedPhone,
           image: imageUrl,
@@ -178,7 +198,7 @@ class ZAPIAdapter {
       
       const response = await fetch(`${this.baseUrl}/send-document/url`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           phone: formattedPhone,
           document: documentUrl,
@@ -208,7 +228,7 @@ class ZAPIAdapter {
       
       const response = await fetch(`${this.baseUrl}/send-audio`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           phone: formattedPhone,
           audio: audioUrl
