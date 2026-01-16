@@ -151,7 +151,7 @@ class WhatsAppInstance {
       const { state, saveCreds } = await this.useFirestoreAuthState();
       const { version } = await fetchLatestBaileysVersion();
 
-      // Criar socket
+      // Criar socket com configurações robustas para Railway
       this.sock = makeWASocket({
         version,
         auth: {
@@ -159,8 +159,18 @@ class WhatsAppInstance {
           keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })),
         },
         logger: pino({ level: 'silent' }),
-        browser: ['WhatsApp API', 'Chrome', '120.0.0'],
+        browser: ['Kesher API', 'Safari', '17.0'],
         generateHighQualityLinkPreview: true,
+        // Configurações de timeout aumentadas para Railway
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 25000,
+        retryRequestDelayMs: 500,
+        // Opções adicionais para estabilidade
+        syncFullHistory: false,
+        markOnlineOnConnect: false,
+        qrTimeout: 60000,
+        emitOwnEvents: true,
       });
 
       // Evento: Atualização de conexão
