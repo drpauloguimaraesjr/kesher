@@ -229,6 +229,48 @@ const WEBHOOK_DESTINATIONS = [
   process.env.NUTRIBUDDY_WEBHOOK_URL || 'https://web-production-c9eaf.up.railway.app/api/whatsapp-kesher/webhook'
 ];
 
+// ============================================================
+// SISTEMA DE LOGS EM MEMÓRIA
+// ============================================================
+const MESSAGE_LOGS = [];
+const MAX_LOGS = 100;
+
+function addMessageLog(log) {
+  MESSAGE_LOGS.unshift({
+    id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    timestamp: new Date().toISOString(),
+    ...log
+  });
+  // Manter apenas os últimos MAX_LOGS
+  if (MESSAGE_LOGS.length > MAX_LOGS) {
+    MESSAGE_LOGS.pop();
+  }
+}
+
+/**
+ * GET /api/zapi/logs
+ * Retorna os logs de mensagens
+ */
+router.get('/logs', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const logs = MESSAGE_LOGS.slice(0, limit);
+  res.json({
+    success: true,
+    count: logs.length,
+    total: MESSAGE_LOGS.length,
+    logs
+  });
+});
+
+/**
+ * DELETE /api/zapi/logs
+ * Limpa os logs
+ */
+router.delete('/logs', (req, res) => {
+  MESSAGE_LOGS.length = 0;
+  res.json({ success: true, message: 'Logs limpos' });
+});
+
 /**
  * Transforma o payload do Z-API para o formato esperado pelo NutriBuddy
  */
@@ -390,6 +432,19 @@ router.post('/webhook', async (req, res) => {
     });
 
     const results = await Promise.all(forwardPromises);
+
+    // Registrar no log de mensagens
+    addMessageLog({
+      direction: 'received',
+      phone: transformedPayload.phone,
+      message: transformedPayload.message,
+      type: transformedPayload.type,
+      mediaUrl: transformedPayload.mediaUrl,
+      senderName: transformedPayload.senderName,
+      messageId: transformedPayload.messageId,
+      status: results.every(r => r.success) ? 'delivered' : 'failed',
+      forwardedTo: results.map(r => ({ url: r.url, status: r.status }))
+    });
 
     // Responde ao Z-API que recebeu com sucesso
     res.status(200).json({
