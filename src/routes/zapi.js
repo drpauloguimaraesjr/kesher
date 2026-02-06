@@ -338,11 +338,28 @@ function transformZAPIPayload(zapiEvent) {
     mimeType = zapiEvent.image.mimeType || 'image/jpeg';
     console.log('🖼️ [Webhook] Imagem recebida:', { mediaUrl, caption: message });
   } else if (hasAudio || hasVoice) {
-    type = 'audio';
+    type = hasVoice ? 'ptt' : 'audio';  // Diferenciar áudio de mensagem de voz
     const audioData = zapiEvent.audio || zapiEvent.ptt || zapiEvent.ptv || {};
-    mediaUrl = audioData.audioUrl || audioData.url || null;
+    
+    // 🔧 FIX: Tentar múltiplos campos onde a URL pode estar
+    mediaUrl = audioData.audioUrl 
+            || audioData.url 
+            || audioData.link 
+            || audioData.mediaUrl
+            || audioData.fileUrl
+            || zapiEvent.audioUrl  // Pode estar na raiz
+            || zapiEvent.mediaUrl  // Pode estar na raiz
+            || null;
+            
     mimeType = audioData.mimeType || 'audio/ogg';
-    console.log('🎵 [Webhook] Áudio recebido:', { mediaUrl });
+    
+    // Log detalhado para debug
+    console.log('🎵 [Webhook] Áudio recebido:', { 
+      mediaUrl, 
+      mimeType,
+      audioDataKeys: Object.keys(audioData),
+      rawAudioData: JSON.stringify(audioData).substring(0, 500)
+    });
   } else if (hasVideo) {
     type = 'video';
     message = zapiEvent.video.caption || '';
