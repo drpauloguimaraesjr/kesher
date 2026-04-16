@@ -21,6 +21,8 @@
  * Docs: https://whapi.readme.io/reference/
  */
 
+const whapiJidMap = require('./WhapiJidMap');
+
 class WhapiAdapter {
   get baseUrl() {
     return (process.env.WHAPI_API_URL || 'https://gate.whapi.cloud').replace(/\/$/, '');
@@ -84,6 +86,30 @@ class WhapiAdapter {
     }
 
     return cleaned;
+  }
+
+  /**
+   * Resolve o destino do envio:
+   *   1. Tenta lookup no WhapiJidMap (chat_id real visto em mensagem
+   *      anterior do paciente). Se houver, retorna o chat_id literal.
+   *   2. Fallback: usa formatPhone (com WHAPI_FORCE_NO9_FOR opcional).
+   *
+   * Garante que respostas caiam SEMPRE no JID que o paciente realmente
+   * usa, eliminando o problema de respostas presas em status=sent.
+   */
+  async resolveTo(phone) {
+    try {
+      const mapped = await whapiJidMap.lookup(phone);
+      if (mapped) {
+        console.log(`[WHAPI resolveTo] mapping hit: ${phone} → ${mapped}`);
+        return mapped;
+      }
+    } catch (err) {
+      console.error('[WHAPI resolveTo] erro no lookup, usando formatPhone:', err.message);
+    }
+    const formatted = this.formatPhone(phone);
+    console.log(`[WHAPI resolveTo] sem mapping, formatPhone: ${phone} → ${formatted}`);
+    return formatted;
   }
 
   async request(method, path, body = null) {
@@ -153,7 +179,7 @@ class WhapiAdapter {
   // ========================================================
 
   async sendTextMessage(phone, message) {
-    const to = this.formatPhone(phone);
+    const to = await this.resolveTo(phone);
     const result = await this.request('POST', '/messages/text', {
       to,
       body: message,
@@ -163,7 +189,7 @@ class WhapiAdapter {
   }
 
   async sendImageMessage(phone, imageUrl, caption = '') {
-    const to = this.formatPhone(phone);
+    const to = await this.resolveTo(phone);
     const result = await this.request('POST', '/messages/image', {
       to,
       media: imageUrl, // WHAPI aceita URL (string) ou { url, mime_type } (objeto)
@@ -174,7 +200,7 @@ class WhapiAdapter {
   }
 
   async sendVideoMessage(phone, videoUrl, caption = '') {
-    const to = this.formatPhone(phone);
+    const to = await this.resolveTo(phone);
     const result = await this.request('POST', '/messages/video', {
       to,
       media: videoUrl,
@@ -188,7 +214,7 @@ class WhapiAdapter {
    * Envia áudio como arquivo regular (player aparece como áudio comum).
    */
   async sendAudioMessage(phone, audioUrl) {
-    const to = this.formatPhone(phone);
+    const to = await this.resolveTo(phone);
     const result = await this.request('POST', '/messages/audio', {
       to,
       media: audioUrl,
@@ -201,7 +227,7 @@ class WhapiAdapter {
    * Envia áudio como mensagem de voz (PTT / push-to-talk, bolinha de voz do WhatsApp).
    */
   async sendVoiceMessage(phone, voiceUrl) {
-    const to = this.formatPhone(phone);
+    const to = await this.resolveTo(phone);
     const result = await this.request('POST', '/messages/voice', {
       to,
       media: voiceUrl,
@@ -211,7 +237,7 @@ class WhapiAdapter {
   }
 
   async sendDocumentMessage(phone, documentUrl, filename = 'document', caption = '') {
-    const to = this.formatPhone(phone);
+    const to = await this.resolveTo(phone);
     const payload = {
       to,
       media: documentUrl,
@@ -224,7 +250,7 @@ class WhapiAdapter {
   }
 
   async sendStickerMessage(phone, stickerUrl) {
-    const to = this.formatPhone(phone);
+    const to = await this.resolveTo(phone);
     const result = await this.request('POST', '/messages/sticker', {
       to,
       media: stickerUrl,
@@ -234,7 +260,7 @@ class WhapiAdapter {
   }
 
   async sendLocationMessage(phone, latitude, longitude, name = '', address = '') {
-    const to = this.formatPhone(phone);
+    const to = await this.resolveTo(phone);
     const result = await this.request('POST', '/messages/location', {
       to,
       latitude,
@@ -257,7 +283,7 @@ class WhapiAdapter {
    * @param {number} delay   — segundos que o typing deve ficar visível (0 = default do WHAPI)
    */
   async sendPresence(phone, presence = 'typing', delay = 0) {
-    const entryId = this.formatPhone(phone);
+    const entryId = await this.resolveTo(phone);
     const valid = ['typing', 'recording', 'pause'];
     const normalized = valid.includes(presence) ? presence : 'typing';
     const result = await this.request('PUT', `/presences/${encodeURIComponent(entryId)}`, {

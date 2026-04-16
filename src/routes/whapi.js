@@ -14,6 +14,7 @@
 const express = require('express');
 const router = express.Router();
 const whapiAdapter = require('../services/WhapiAdapter');
+const whapiJidMap = require('../services/WhapiJidMap');
 const { isWhapiConfigured, getProvider } = require('../utils/providerRouter');
 
 // Destinos dos webhooks (mesmo do Z-API para manter simetria)
@@ -311,6 +312,26 @@ router.post('/webhook', async (req, res) => {
       console.log(
         `📥 [WHAPI Webhook] Mensagem recebida de ${payload.phone} via WHAPI (piloto, tipo: ${payload.type}, sender: ${payload.senderName})`
       );
+
+      // Captura o JID real do paciente: quando ele MANDA, o chat_id é o
+      // dele mesmo. Salva nas duas variantes (com e sem 9) pra que o
+      // adapter encontre na hora de responder, independente do formato
+      // que o Backend usar. Best-effort, não bloqueia.
+      const realChatId = payload._raw?.chatId;
+      if (realChatId && realChatId.includes('@s.whatsapp.net') && !payload.isGroup) {
+        whapiJidMap
+          .recordChatId(payload.phone, realChatId, {
+            fromName: payload.senderName,
+            messageId: payload.messageId,
+            channelId: payload._raw?.channelId,
+          })
+          .then(() =>
+            console.log(`🗺️  [WhapiJidMap] mapping salvo: ${payload.phone} → ${realChatId}`)
+          )
+          .catch((err) =>
+            console.error('[WhapiJidMap] erro ao salvar mapping:', err.message)
+          );
+      }
 
       const forwardResults = await forwardToBackend(payload);
       results.push({ messageId: id, forwarded: true, forwardResults });
