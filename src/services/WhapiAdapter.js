@@ -74,15 +74,18 @@ class WhapiAdapter {
 
   async request(method, path, body = null) {
     if (!this.isConfigured()) {
+      console.error(`[WHAPI HTTP] ❌ ${method} ${path} — WHAPI_TOKEN não configurado`);
       return { success: false, error: 'WHAPI_TOKEN não configurado' };
     }
+    const bodyStr = body ? JSON.stringify(body) : '';
+    console.log(`[WHAPI HTTP] ➡️  ${method} ${this.baseUrl}${path} body=${bodyStr.slice(0, 300)}`);
     try {
       const init = {
         method,
         headers: this.getHeaders(),
       };
       if (body !== null && body !== undefined) {
-        init.body = JSON.stringify(body);
+        init.body = bodyStr;
       }
       const response = await fetch(`${this.baseUrl}${path}`, init);
       let data = {};
@@ -93,7 +96,10 @@ class WhapiAdapter {
         data = { raw: text };
       }
       if (!response.ok) {
-        console.error(`[WHAPI] ${method} ${path} falhou com HTTP ${response.status}:`, data);
+        console.error(
+          `[WHAPI HTTP] ❌ ${method} ${path} → HTTP ${response.status}:`,
+          JSON.stringify(data).slice(0, 400)
+        );
         return {
           success: false,
           status: response.status,
@@ -101,9 +107,18 @@ class WhapiAdapter {
           data,
         };
       }
+      const idHint =
+        data?.message?.id ||
+        data?.sent?.id ||
+        data?.id ||
+        (Array.isArray(data.messages) && data.messages[0]?.id) ||
+        '';
+      console.log(
+        `[WHAPI HTTP] ✅ ${method} ${path} → ${response.status} ${idHint ? `id=${idHint}` : ''}`
+      );
       return { success: true, status: response.status, data };
     } catch (error) {
-      console.error(`[WHAPI] ${method} ${path} erro:`, error.message);
+      console.error(`[WHAPI HTTP] 💥 ${method} ${path} erro de rede:`, error.message);
       return { success: false, error: error.message };
     }
   }
