@@ -45,7 +45,13 @@ class WhapiAdapter {
   /**
    * Normaliza número para o formato esperado pelo WHAPI.
    * WHAPI aceita número puro (DDI+DDD+número) ou chat_id completo.
-   * Adiciona prefixo 55 (Brasil) se o número vier sem DDI e for curto.
+   *
+   * Regras Brasil (DDI 55):
+   *   - Adiciona DDI 55 se vier sem ele e tiver 10-11 dígitos.
+   *   - Adiciona o "nono dígito" (9) entre DDD e número quando vier
+   *     no formato antigo (12 dígitos: 55 + DDD + 8 dígitos do celular).
+   *     Sem isso, o WhatsApp pode tratar a conversa como contato diferente
+   *     no celular do paciente, criando duas conversas paralelas.
    */
   formatPhone(phone) {
     if (!phone) return '';
@@ -53,9 +59,15 @@ class WhapiAdapter {
     if (String(phone).includes('@')) return String(phone);
 
     let cleaned = String(phone).replace(/\D/g, '');
-    // Se o número não começa com 55 e tem 10-11 dígitos → é local BR
+    // Sem DDI e local BR (10 ou 11 dígitos) → prefixa 55
     if (!cleaned.startsWith('55') && cleaned.length >= 10 && cleaned.length <= 11) {
       cleaned = '55' + cleaned;
+    }
+    // BR formato antigo (55 + DDD + 8 dígitos = 12) → insere o 9
+    if (cleaned.length === 12 && cleaned.startsWith('55')) {
+      const ddd = cleaned.substring(2, 4);
+      const num = cleaned.substring(4);
+      cleaned = `55${ddd}9${num}`;
     }
     return cleaned;
   }
