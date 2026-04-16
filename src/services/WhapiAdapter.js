@@ -48,27 +48,41 @@ class WhapiAdapter {
    *
    * Regras Brasil (DDI 55):
    *   - Adiciona DDI 55 se vier sem ele e tiver 10-11 dígitos.
-   *   - Adiciona o "nono dígito" (9) entre DDD e número quando vier
-   *     no formato antigo (12 dígitos: 55 + DDD + 8 dígitos do celular).
-   *     Sem isso, o WhatsApp pode tratar a conversa como contato diferente
-   *     no celular do paciente, criando duas conversas paralelas.
+   *
+   * Override do nono dígito (caso patológico):
+   *   - WHAPI_FORCE_NO9_FOR aceita lista de números (CSV) cujo "9" entre
+   *     DDD e número deve ser REMOVIDO antes de enviar. Use quando o
+   *     WhatsApp do paciente está registrado no JID antigo (sem 9) e as
+   *     mensagens OUT ficam presas em status=sent (nunca delivered)
+   *     porque o JID com 9 não corresponde a nenhum dispositivo.
+   *
+   *   Exemplo: WHAPI_FORCE_NO9_FOR=5547992567770
+   *     entrada 5547992567770 → saída 554792567770 (JID antigo)
    */
   formatPhone(phone) {
     if (!phone) return '';
-    // Se já vier com @, usar como está (chat_id completo)
     if (String(phone).includes('@')) return String(phone);
 
     let cleaned = String(phone).replace(/\D/g, '');
-    // Sem DDI e local BR (10 ou 11 dígitos) → prefixa 55
     if (!cleaned.startsWith('55') && cleaned.length >= 10 && cleaned.length <= 11) {
       cleaned = '55' + cleaned;
     }
-    // BR formato antigo (55 + DDD + 8 dígitos = 12) → insere o 9
-    if (cleaned.length === 12 && cleaned.startsWith('55')) {
+
+    // Override: remover o 9 para números configurados em WHAPI_FORCE_NO9_FOR
+    const forceNo9 = (process.env.WHAPI_FORCE_NO9_FOR || '')
+      .split(',')
+      .map((n) => n.trim().replace(/\D/g, ''))
+      .filter(Boolean);
+
+    if (cleaned.length === 13 && cleaned.startsWith('55') && forceNo9.includes(cleaned)) {
       const ddd = cleaned.substring(2, 4);
-      const num = cleaned.substring(4);
-      cleaned = `55${ddd}9${num}`;
+      const numComNove = cleaned.substring(4); // 9XXXXYYYY (9 dígitos)
+      if (numComNove.startsWith('9')) {
+        cleaned = `55${ddd}${numComNove.substring(1)}`; // remove o 9 inicial
+        console.log(`[WHAPI formatPhone] override sem-9 aplicado → ${cleaned}`);
+      }
     }
+
     return cleaned;
   }
 
