@@ -249,6 +249,40 @@ class ZAPIAdapter {
   }
 
   /**
+   * Envia indicador de chat-status (typing / recording / paused).
+   * Z-API endpoint: POST {baseUrl}/send-chat-status
+   * Body: { phone, status: "composing" | "recording" | "paused" }
+   *
+   * Mapeamento do nome genérico (igual ao WHAPI):
+   *   typing    → composing
+   *   recording → recording
+   *   pause     → paused
+   */
+  async sendChatStatus(phone, presence = 'typing') {
+    try {
+      const formattedPhone = this.formatPhone(phone);
+      const map = { typing: 'composing', recording: 'recording', pause: 'paused' };
+      const status = map[presence] || 'composing';
+
+      const response = await fetch(`${this.baseUrl}/send-chat-status`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ phone: formattedPhone, status })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      return {
+        success: !data.error,
+        data
+      };
+    } catch (error) {
+      console.error('[Z-API] Erro ao enviar chat-status:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Obtém informações do contato
    */
   async getContactInfo(phone) {

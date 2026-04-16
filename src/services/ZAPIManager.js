@@ -195,6 +195,19 @@ class ZAPIManager {
   }
 
   /**
+   * Envia chat-status (typing / recording / pause)
+   */
+  async sendChatStatus(name, phone, presence) {
+    const instance = this.instances.get(name);
+
+    if (!instance) {
+      return { success: false, error: 'Instância não encontrada' };
+    }
+
+    return await instance.adapter.sendChatStatus(phone, presence);
+  }
+
+  /**
    * Reinicia uma instância
    */
   async restartInstance(name) {

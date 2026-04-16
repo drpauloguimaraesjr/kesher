@@ -6,6 +6,8 @@
 const express = require('express');
 const router = express.Router();
 const zapiManager = require('../services/ZAPIManager');
+const whapiAdapter = require('../services/WhapiAdapter');
+const { getProvider } = require('../utils/providerRouter');
 
 /**
  * POST /api/zapi/instance/add
@@ -132,14 +134,32 @@ router.post('/message/send/text', async (req, res) => {
   try {
     const { instanceId, phone, message } = req.body;
 
-    if (!instanceId || !phone || !message) {
+    if (!phone || !message) {
       return res.status(400).json({
         success: false,
-        error: 'instanceId, phone e message são obrigatórios'
+        error: 'phone e message são obrigatórios'
       });
     }
 
-    const result = await zapiManager.sendTextMessage(instanceId, phone, message);
+    const provider = getProvider(phone);
+
+    let result;
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando texto para ${phone} via WHAPI (piloto)`);
+      result = await whapiAdapter.sendTextMessage(phone, message);
+      result.provider = 'whapi';
+    } else {
+      if (!instanceId) {
+        return res.status(400).json({
+          success: false,
+          error: 'instanceId é obrigatório para envio via Z-API'
+        });
+      }
+      console.log(`📤 [Router] Enviando texto para ${phone} via Z-API (padrão)`);
+      result = await zapiManager.sendTextMessage(instanceId, phone, message);
+      result.provider = 'zapi';
+    }
+
     res.status(result.success ? 200 : 400).json(result);
 
   } catch (error) {
@@ -156,14 +176,32 @@ router.post('/message/send/image', async (req, res) => {
   try {
     const { instanceId, phone, imageUrl, caption } = req.body;
 
-    if (!instanceId || !phone || !imageUrl) {
+    if (!phone || !imageUrl) {
       return res.status(400).json({
         success: false,
-        error: 'instanceId, phone e imageUrl são obrigatórios'
+        error: 'phone e imageUrl são obrigatórios'
       });
     }
 
-    const result = await zapiManager.sendImageMessage(instanceId, phone, imageUrl, caption);
+    const provider = getProvider(phone);
+
+    let result;
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando imagem para ${phone} via WHAPI (piloto)`);
+      result = await whapiAdapter.sendImageMessage(phone, imageUrl, caption || '');
+      result.provider = 'whapi';
+    } else {
+      if (!instanceId) {
+        return res.status(400).json({
+          success: false,
+          error: 'instanceId é obrigatório para envio via Z-API'
+        });
+      }
+      console.log(`📤 [Router] Enviando imagem para ${phone} via Z-API (padrão)`);
+      result = await zapiManager.sendImageMessage(instanceId, phone, imageUrl, caption);
+      result.provider = 'zapi';
+    }
+
     res.status(result.success ? 200 : 400).json(result);
 
   } catch (error) {
@@ -178,16 +216,37 @@ router.post('/message/send/image', async (req, res) => {
  */
 router.post('/message/send/audio', async (req, res) => {
   try {
-    const { instanceId, phone, audioUrl } = req.body;
+    const { instanceId, phone, audioUrl, asVoice } = req.body;
 
-    if (!instanceId || !phone || !audioUrl) {
+    if (!phone || !audioUrl) {
       return res.status(400).json({
         success: false,
-        error: 'instanceId, phone e audioUrl são obrigatórios'
+        error: 'phone e audioUrl são obrigatórios'
       });
     }
 
-    const result = await zapiManager.sendAudioMessage(instanceId, phone, audioUrl);
+    const provider = getProvider(phone);
+
+    let result;
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando áudio para ${phone} via WHAPI (piloto, voz=${!!asVoice})`);
+      // asVoice=true → PTT (bolinha de voz); padrão: arquivo de áudio comum
+      result = asVoice
+        ? await whapiAdapter.sendVoiceMessage(phone, audioUrl)
+        : await whapiAdapter.sendAudioMessage(phone, audioUrl);
+      result.provider = 'whapi';
+    } else {
+      if (!instanceId) {
+        return res.status(400).json({
+          success: false,
+          error: 'instanceId é obrigatório para envio via Z-API'
+        });
+      }
+      console.log(`📤 [Router] Enviando áudio para ${phone} via Z-API (padrão)`);
+      result = await zapiManager.sendAudioMessage(instanceId, phone, audioUrl);
+      result.provider = 'zapi';
+    }
+
     res.status(result.success ? 200 : 400).json(result);
 
   } catch (error) {
@@ -202,20 +261,210 @@ router.post('/message/send/audio', async (req, res) => {
  */
 router.post('/message/send/document', async (req, res) => {
   try {
-    const { instanceId, phone, documentUrl, filename } = req.body;
+    const { instanceId, phone, documentUrl, filename, caption } = req.body;
 
-    if (!instanceId || !phone || !documentUrl) {
+    if (!phone || !documentUrl) {
       return res.status(400).json({
         success: false,
-        error: 'instanceId, phone e documentUrl são obrigatórios'
+        error: 'phone e documentUrl são obrigatórios'
       });
     }
 
-    const result = await zapiManager.sendDocumentMessage(instanceId, phone, documentUrl, filename);
+    const provider = getProvider(phone);
+
+    let result;
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando documento para ${phone} via WHAPI (piloto)`);
+      result = await whapiAdapter.sendDocumentMessage(
+        phone,
+        documentUrl,
+        filename || 'document',
+        caption || ''
+      );
+      result.provider = 'whapi';
+    } else {
+      if (!instanceId) {
+        return res.status(400).json({
+          success: false,
+          error: 'instanceId é obrigatório para envio via Z-API'
+        });
+      }
+      console.log(`📤 [Router] Enviando documento para ${phone} via Z-API (padrão)`);
+      result = await zapiManager.sendDocumentMessage(instanceId, phone, documentUrl, filename);
+      result.provider = 'zapi';
+    }
+
     res.status(result.success ? 200 : 400).json(result);
 
   } catch (error) {
     console.error('❌ Erro ao enviar documento:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/zapi/message/send/video
+ * Envia vídeo (suportado via WHAPI no número piloto; Z-API não implementado aqui)
+ */
+router.post('/message/send/video', async (req, res) => {
+  try {
+    const { phone, videoUrl, caption } = req.body;
+
+    if (!phone || !videoUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'phone e videoUrl são obrigatórios'
+      });
+    }
+
+    const provider = getProvider(phone);
+
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando vídeo para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.sendVideoMessage(phone, videoUrl, caption || '');
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+
+    // Z-API: ainda não exposto no adapter; retorna não-implementado
+    return res.status(501).json({
+      success: false,
+      provider: 'zapi',
+      error: 'Envio de vídeo via Z-API ainda não implementado no Kesher'
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao enviar vídeo:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/zapi/message/send/sticker
+ */
+router.post('/message/send/sticker', async (req, res) => {
+  try {
+    const { phone, stickerUrl } = req.body;
+
+    if (!phone || !stickerUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'phone e stickerUrl são obrigatórios'
+      });
+    }
+
+    const provider = getProvider(phone);
+
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando sticker para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.sendStickerMessage(phone, stickerUrl);
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+
+    return res.status(501).json({
+      success: false,
+      provider: 'zapi',
+      error: 'Envio de sticker via Z-API ainda não implementado no Kesher'
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao enviar sticker:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/zapi/message/send/location
+ */
+router.post('/message/send/location', async (req, res) => {
+  try {
+    const { phone, latitude, longitude, name, address } = req.body;
+
+    if (!phone || latitude === undefined || longitude === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'phone, latitude e longitude são obrigatórios'
+      });
+    }
+
+    const provider = getProvider(phone);
+
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando localização para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.sendLocationMessage(
+        phone, latitude, longitude, name || '', address || ''
+      );
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+
+    return res.status(501).json({
+      success: false,
+      provider: 'zapi',
+      error: 'Envio de localização via Z-API ainda não implementado no Kesher'
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao enviar localização:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/zapi/chat/send-presence
+ * Envia indicador de presença (typing / recording / pause).
+ *
+ * Usado pelo Backend/AgentPaul para mostrar "digitando..." enquanto processa uma resposta.
+ *
+ * Aceita:
+ *   { instanceId?, phone, presence: 'typing'|'recording'|'pause', delay?: seg }
+ */
+router.post('/chat/send-presence', async (req, res) => {
+  try {
+    const { instanceId, phone, presence, status, delay } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'phone é obrigatório'
+      });
+    }
+
+    // Aceitar tanto 'presence' quanto 'status' no body (legado Z-API)
+    let normalizedPresence = presence || status || 'typing';
+    // Mapeia nomes Z-API legado para padrão unificado
+    if (normalizedPresence === 'composing') normalizedPresence = 'typing';
+    if (normalizedPresence === 'paused') normalizedPresence = 'pause';
+
+    const provider = getProvider(phone);
+
+    let result;
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Presença "${normalizedPresence}" para ${phone} via WHAPI (piloto)`);
+      result = await whapiAdapter.sendPresence(phone, normalizedPresence, delay || 0);
+      result.provider = 'whapi';
+    } else {
+      if (!instanceId) {
+        // Se não vier instanceId, não podemos enviar via Z-API — retornamos success=true
+        // para não bloquear o fluxo de resposta do AgentPaul (presença é best-effort).
+        console.log(`📤 [Router] Presença para ${phone} via Z-API pulada (sem instanceId)`);
+        return res.status(200).json({
+          success: true,
+          provider: 'zapi',
+          skipped: true,
+          reason: 'instanceId ausente — presença é opcional'
+        });
+      }
+      console.log(`📤 [Router] Presença "${normalizedPresence}" para ${phone} via Z-API (padrão)`);
+      result = await zapiManager.sendChatStatus(instanceId, phone, normalizedPresence);
+      result.provider = 'zapi';
+    }
+
+    res.status(result.success ? 200 : 400).json(result);
+
+  } catch (error) {
+    console.error('❌ Erro ao enviar presença:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -415,7 +664,7 @@ function transformZAPIPayload(zapiEvent) {
 router.post('/webhook', async (req, res) => {
   try {
     const event = req.body;
-    
+
     console.log(`📨 [Kesher Webhook] Evento recebido de Z-API`);
 
     // Transformar payload do Z-API para formato NutriBuddy
@@ -429,6 +678,24 @@ router.post('/webhook', async (req, res) => {
         forwarded: false
       });
     }
+
+    // 🔀 Roteamento por número: se este paciente é piloto WHAPI,
+    // o Z-API NÃO encaminha (o WHAPI vai cuidar). Evita duplicação
+    // quando o mesmo número está conectado em ambas as APIs (multi-device).
+    const provider = getProvider(transformedPayload.phone);
+    if (provider === 'whapi') {
+      console.log(
+        `⏭️ [Z-API Webhook] Mensagem de ${transformedPayload.phone} ignorada — número é piloto WHAPI`
+      );
+      return res.status(200).json({
+        success: true,
+        message: 'Número roteado para WHAPI — Z-API não encaminha',
+        provider: 'whapi',
+        forwarded: false
+      });
+    }
+
+    console.log(`📥 [Z-API Webhook] Mensagem recebida de ${transformedPayload.phone} via Z-API (padrão)`);
 
     // Repassa para todos os destinos configurados
     const forwardPromises = WEBHOOK_DESTINATIONS.map(async (url) => {

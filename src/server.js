@@ -76,10 +76,11 @@ app.get("/health", (req, res) => {
   });
 });
 
-// ========== WEBHOOKS PÚBLICOS (Z-API não envia API Key) ==========
+// ========== WEBHOOKS PÚBLICOS (Z-API / WHAPI não enviam API Key) ==========
 
 // Importar handlers de webhook diretamente
 const zapiWebhookRouter = require('./routes/zapi');
+const whapiWebhookRouter = require('./routes/whapi');
 
 // POST /api/zapi/webhook - recebe eventos do Z-API
 app.post("/api/zapi/webhook", (req, res, next) => {
@@ -98,6 +99,30 @@ app.post("/api/zapi/webhook/test", (req, res, next) => {
 app.get("/api/zapi/webhook", (req, res, next) => {
   req.url = '/webhook';
   zapiWebhookRouter(req, res, next);
+});
+
+// POST /api/whapi/webhook - recebe eventos do WHAPI (messages.post / statuses.post)
+app.post("/api/whapi/webhook", (req, res, next) => {
+  req.url = '/webhook';
+  whapiWebhookRouter(req, res, next);
+});
+
+// POST /api/whapi/webhook/test - testar webhook WHAPI
+app.post("/api/whapi/webhook/test", (req, res, next) => {
+  req.url = '/webhook/test';
+  whapiWebhookRouter(req, res, next);
+});
+
+// GET /api/whapi/webhook - health check do webhook WHAPI
+app.get("/api/whapi/webhook", (req, res, next) => {
+  req.url = '/webhook';
+  whapiWebhookRouter(req, res, next);
+});
+
+// GET /api/whapi/status - status do canal WHAPI
+app.get("/api/whapi/status", (req, res, next) => {
+  req.url = '/status';
+  whapiWebhookRouter(req, res, next);
 });
 
 // ========== ROTAS PROTEGIDAS ==========
@@ -162,16 +187,25 @@ async function startServer() {
     console.log("📂 Carregando instâncias Z-API...");
     await zapiManager.loadExistingInstances();
 
-    // 3. Inicia servidor
+    // 4. Status do provider WHAPI (piloto)
+    const pilotPhones = (process.env.WHAPI_PILOT_PHONES || '')
+      .split(',').map(p => p.trim()).filter(Boolean);
+    const whapiConfigured = !!process.env.WHAPI_TOKEN;
+    console.log(`🔀 Provider router: ${pilotPhones.length} número(s) piloto em WHAPI, restante em Z-API`);
+    console.log(`   WHAPI token:   ${whapiConfigured ? '✅ configurado' : '⚠️  ausente'}`);
+    console.log(`   Pilot phones:  ${pilotPhones.length ? pilotPhones.join(', ') : '(vazio — tudo vai por Z-API)'}`);
+
+    // 5. Inicia servidor
     app.listen(PORT, () => {
       console.log("");
       console.log(`✅ Servidor rodando na porta ${PORT}`);
       console.log("");
       console.log("📡 Endpoints disponíveis:");
       console.log(`   GET  http://localhost:${PORT}/health`);
-      console.log(`   POST http://localhost:${PORT}/api/instance/create`);
-      console.log(`   GET  http://localhost:${PORT}/api/instance/:id/qrcode`);
-      console.log(`   POST http://localhost:${PORT}/api/message/send/text`);
+      console.log(`   POST http://localhost:${PORT}/api/zapi/webhook       (Z-API)`);
+      console.log(`   POST http://localhost:${PORT}/api/whapi/webhook      (WHAPI)`);
+      console.log(`   POST http://localhost:${PORT}/api/zapi/message/send/text    (roteado por número)`);
+      console.log(`   POST http://localhost:${PORT}/api/zapi/chat/send-presence   (typing indicator)`);
       console.log("");
       console.log("📖 Documentação completa no README.md");
       console.log("");
