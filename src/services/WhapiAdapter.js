@@ -178,96 +178,80 @@ class WhapiAdapter {
   // SENDERS
   // ========================================================
 
-  async sendTextMessage(phone, message) {
-    const to = await this.resolveTo(phone);
-    const result = await this.request('POST', '/messages/text', {
-      to,
-      body: message,
-    });
-    if (!result.success) return result;
-    return { success: true, messageId: this.extractMessageId(result), data: result.data };
-  }
-
-  async sendImageMessage(phone, imageUrl, caption = '') {
-    const to = await this.resolveTo(phone);
-    const result = await this.request('POST', '/messages/image', {
-      to,
-      media: imageUrl, // WHAPI aceita URL (string) ou { url, mime_type } (objeto)
-      caption,
-    });
-    if (!result.success) return result;
-    return { success: true, messageId: this.extractMessageId(result), data: result.data };
-  }
-
-  async sendVideoMessage(phone, videoUrl, caption = '') {
-    const to = await this.resolveTo(phone);
-    const result = await this.request('POST', '/messages/video', {
-      to,
-      media: videoUrl,
-      caption,
-    });
-    if (!result.success) return result;
-    return { success: true, messageId: this.extractMessageId(result), data: result.data };
-  }
-
   /**
-   * Envia áudio como arquivo regular (player aparece como áudio comum).
+   * Helper: mescla opções comuns (quoted, mentions, typing_time) no payload.
+   * O caller passa { to, body, ... } e opts: { quoted?, mentions?, typingTime? }.
    */
-  async sendAudioMessage(phone, audioUrl) {
+  applyOpts(payload, opts = {}) {
+    if (opts.quoted) payload.quoted = opts.quoted;
+    if (opts.mentions?.length) payload.mentions = opts.mentions;
+    if (opts.typingTime != null) payload.typing_time = Number(opts.typingTime);
+    if (opts.viewOnce) payload.view_once = true;
+    if (opts.noLinkPreview) payload.no_link_preview = true;
+    return payload;
+  }
+
+  async sendTextMessage(phone, message, opts = {}) {
     const to = await this.resolveTo(phone);
-    const result = await this.request('POST', '/messages/audio', {
-      to,
-      media: audioUrl,
-    });
+    const payload = this.applyOpts({ to, body: message }, opts);
+    const result = await this.request('POST', '/messages/text', payload);
     if (!result.success) return result;
     return { success: true, messageId: this.extractMessageId(result), data: result.data };
   }
 
-  /**
-   * Envia áudio como mensagem de voz (PTT / push-to-talk, bolinha de voz do WhatsApp).
-   */
-  async sendVoiceMessage(phone, voiceUrl) {
+  async sendImageMessage(phone, imageUrl, caption = '', opts = {}) {
     const to = await this.resolveTo(phone);
-    const result = await this.request('POST', '/messages/voice', {
-      to,
-      media: voiceUrl,
-    });
+    const payload = this.applyOpts({ to, media: imageUrl, caption }, opts);
+    const result = await this.request('POST', '/messages/image', payload);
     if (!result.success) return result;
     return { success: true, messageId: this.extractMessageId(result), data: result.data };
   }
 
-  async sendDocumentMessage(phone, documentUrl, filename = 'document', caption = '') {
+  async sendVideoMessage(phone, videoUrl, caption = '', opts = {}) {
     const to = await this.resolveTo(phone);
-    const payload = {
-      to,
-      media: documentUrl,
-      filename,
-    };
+    const payload = this.applyOpts({ to, media: videoUrl, caption }, opts);
+    const result = await this.request('POST', '/messages/video', payload);
+    if (!result.success) return result;
+    return { success: true, messageId: this.extractMessageId(result), data: result.data };
+  }
+
+  async sendAudioMessage(phone, audioUrl, opts = {}) {
+    const to = await this.resolveTo(phone);
+    const payload = this.applyOpts({ to, media: audioUrl }, opts);
+    const result = await this.request('POST', '/messages/audio', payload);
+    if (!result.success) return result;
+    return { success: true, messageId: this.extractMessageId(result), data: result.data };
+  }
+
+  async sendVoiceMessage(phone, voiceUrl, opts = {}) {
+    const to = await this.resolveTo(phone);
+    const payload = this.applyOpts({ to, media: voiceUrl }, opts);
+    const result = await this.request('POST', '/messages/voice', payload);
+    if (!result.success) return result;
+    return { success: true, messageId: this.extractMessageId(result), data: result.data };
+  }
+
+  async sendDocumentMessage(phone, documentUrl, filename = 'document', caption = '', opts = {}) {
+    const to = await this.resolveTo(phone);
+    const payload = this.applyOpts({ to, media: documentUrl, filename }, opts);
     if (caption) payload.caption = caption;
     const result = await this.request('POST', '/messages/document', payload);
     if (!result.success) return result;
     return { success: true, messageId: this.extractMessageId(result), data: result.data };
   }
 
-  async sendStickerMessage(phone, stickerUrl) {
+  async sendStickerMessage(phone, stickerUrl, opts = {}) {
     const to = await this.resolveTo(phone);
-    const result = await this.request('POST', '/messages/sticker', {
-      to,
-      media: stickerUrl,
-    });
+    const payload = this.applyOpts({ to, media: stickerUrl }, opts);
+    const result = await this.request('POST', '/messages/sticker', payload);
     if (!result.success) return result;
     return { success: true, messageId: this.extractMessageId(result), data: result.data };
   }
 
-  async sendLocationMessage(phone, latitude, longitude, name = '', address = '') {
+  async sendLocationMessage(phone, latitude, longitude, name = '', address = '', opts = {}) {
     const to = await this.resolveTo(phone);
-    const result = await this.request('POST', '/messages/location', {
-      to,
-      latitude,
-      longitude,
-      name,
-      address,
-    });
+    const payload = this.applyOpts({ to, latitude, longitude, name, address }, opts);
+    const result = await this.request('POST', '/messages/location', payload);
     if (!result.success) return result;
     return { success: true, messageId: this.extractMessageId(result), data: result.data };
   }
@@ -291,6 +275,134 @@ class WhapiAdapter {
       delay: Number(delay) || 0,
     });
     return result;
+  }
+
+  // ========================================================
+  // REAÇÕES
+  // ========================================================
+
+  async sendReaction(phone, messageId, emoji) {
+    const to = await this.resolveTo(phone);
+    const result = await this.request('POST', '/messages/reaction', {
+      to,
+      message_id: messageId,
+      emoji: emoji || '',
+    });
+    return result;
+  }
+
+  // ========================================================
+  // ENQUETES (POLLS)
+  // ========================================================
+
+  async sendPoll(phone, title, options, multipleAnswers = false) {
+    const to = await this.resolveTo(phone);
+    const result = await this.request('POST', '/messages/poll', {
+      to,
+      title,
+      options: options.map((o) => (typeof o === 'string' ? { name: o } : o)),
+      multiple_answers: multipleAnswers,
+    });
+    if (!result.success) return result;
+    return { success: true, messageId: this.extractMessageId(result), data: result.data };
+  }
+
+  // ========================================================
+  // MENSAGENS INTERATIVAS (botões, listas)
+  // ========================================================
+
+  async sendButtons(phone, body, buttons, header = '', footer = '') {
+    const to = await this.resolveTo(phone);
+    const payload = {
+      to,
+      body,
+      action: {
+        buttons: buttons.map((b, i) => ({
+          type: 'reply',
+          reply: {
+            id: b.id || `btn_${i}`,
+            title: typeof b === 'string' ? b : b.title,
+          },
+        })),
+      },
+    };
+    if (header) payload.header = { type: 'text', text: header };
+    if (footer) payload.footer = footer;
+    const result = await this.request('POST', '/messages/interactive', payload);
+    if (!result.success) return result;
+    return { success: true, messageId: this.extractMessageId(result), data: result.data };
+  }
+
+  async sendList(phone, body, sections, buttonText = 'Menu', header = '', footer = '') {
+    const to = await this.resolveTo(phone);
+    const payload = {
+      to,
+      body,
+      action: {
+        button: buttonText,
+        sections: sections.map((s) => ({
+          title: s.title || '',
+          rows: (s.rows || s.options || []).map((r, i) => ({
+            id: r.id || `row_${i}`,
+            title: typeof r === 'string' ? r : r.title,
+            description: r.description || '',
+          })),
+        })),
+      },
+    };
+    if (header) payload.header = { type: 'text', text: header };
+    if (footer) payload.footer = footer;
+    const result = await this.request('POST', '/messages/interactive', payload);
+    if (!result.success) return result;
+    return { success: true, messageId: this.extractMessageId(result), data: result.data };
+  }
+
+  // ========================================================
+  // EDIÇÃO / DELEÇÃO DE MENSAGENS
+  // ========================================================
+
+  async editMessage(phone, messageId, newText) {
+    const to = await this.resolveTo(phone);
+    const result = await this.request('POST', '/messages/text', {
+      to,
+      body: newText,
+      edit: messageId,
+    });
+    if (!result.success) return result;
+    return { success: true, messageId: this.extractMessageId(result), data: result.data };
+  }
+
+  async deleteMessage(messageId) {
+    const result = await this.request('DELETE', `/messages/${encodeURIComponent(messageId)}`);
+    return result;
+  }
+
+  // ========================================================
+  // READ RECEIPTS
+  // ========================================================
+
+  async markAsRead(phone, messageId) {
+    const chatId = await this.resolveTo(phone);
+    const result = await this.request('PUT', `/chats/${encodeURIComponent(chatId)}`, {
+      last_read_message: messageId,
+    });
+    return result;
+  }
+
+  // ========================================================
+  // CONTATOS (vCard)
+  // ========================================================
+
+  async sendContact(phone, contactName, contactPhone) {
+    const to = await this.resolveTo(phone);
+    const cleanPhone = String(contactPhone).replace(/\D/g, '');
+    const result = await this.request('POST', '/messages/contact', {
+      to,
+      name: contactName,
+      vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${contactName}\nTEL;type=CELL:+${cleanPhone}\nEND:VCARD`,
+    });
+    if (!result.success) return result;
+    return { success: true, messageId: this.extractMessageId(result), data: result.data };
   }
 
   // ========================================================

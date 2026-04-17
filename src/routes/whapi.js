@@ -153,9 +153,55 @@ function transformWhapiMessage(m, channelId) {
       message = c.name || c.formatted_name || '';
       break;
     }
+    case 'reaction': {
+      unifiedType = 'reaction';
+      const r = m.reaction || {};
+      message = r.emoji || r.text || '';
+      break;
+    }
+    case 'poll': {
+      unifiedType = 'poll';
+      const p = m.poll || {};
+      message = p.title || p.name || '';
+      break;
+    }
+    case 'poll_update': {
+      unifiedType = 'poll_update';
+      const pu = m.poll_update || m.poll_vote || {};
+      message = JSON.stringify(pu.votes || pu.selected || pu);
+      break;
+    }
+    case 'interactive':
+    case 'button_reply':
+    case 'list_reply': {
+      unifiedType = 'interactive_reply';
+      const ir = m.interactive || m.button_reply || m.list_reply || {};
+      message = ir.title || ir.body || ir.id || ir.selected_id || '';
+      break;
+    }
+    case 'revoked':
+    case 'deleted': {
+      unifiedType = 'revoked';
+      message = '';
+      break;
+    }
+    case 'edited': {
+      unifiedType = 'edited';
+      const ed = m.edited || m.text || {};
+      message = typeof ed === 'string' ? ed : ed.body || ed.message || '';
+      break;
+    }
     default:
       console.log(`⏭️ [WHAPI] Tipo de mensagem não suportado: ${rawType}`);
       return null;
+  }
+
+  // Extrair contexto de citação (replied message)
+  let quotedMessageId = null;
+  if (m.context && m.context.quoted_id) {
+    quotedMessageId = m.context.quoted_id;
+  } else if (m.quoted) {
+    quotedMessageId = typeof m.quoted === 'string' ? m.quoted : m.quoted?.id;
   }
 
   const chatId = m.chat_id || m.chatId || '';
@@ -185,6 +231,9 @@ function transformWhapiMessage(m, channelId) {
     timestamp: timestampIso,
     senderPhoto: m.from_profile_picture || m.profile_picture || null,
     isGroup,
+    quotedMessageId: quotedMessageId || null,
+    reactionEmoji: unifiedType === 'reaction' ? message : null,
+    reactionTargetId: unifiedType === 'reaction' ? (m.reaction?.message_id || null) : null,
     _raw: {
       provider: 'whapi',
       chatId,

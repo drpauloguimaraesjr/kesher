@@ -470,6 +470,179 @@ router.post('/chat/send-presence', async (req, res) => {
 });
 
 // ============================================================
+/**
+ * POST /api/zapi/message/send/reaction
+ */
+router.post('/message/send/reaction', async (req, res) => {
+  try {
+    const { phone, messageId, emoji } = req.body;
+    if (!phone || !messageId) {
+      return res.status(400).json({ success: false, error: 'phone e messageId são obrigatórios' });
+    }
+    const provider = getProvider(phone);
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando reação "${emoji}" para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.sendReaction(phone, messageId, emoji || '');
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+    return res.status(501).json({ success: false, provider: 'zapi', error: 'Reação via Z-API não implementado' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/zapi/message/send/poll
+ */
+router.post('/message/send/poll', async (req, res) => {
+  try {
+    const { phone, title, options, multipleAnswers } = req.body;
+    if (!phone || !title || !options?.length) {
+      return res.status(400).json({ success: false, error: 'phone, title e options são obrigatórios' });
+    }
+    const provider = getProvider(phone);
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando enquete para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.sendPoll(phone, title, options, multipleAnswers);
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+    return res.status(501).json({ success: false, provider: 'zapi', error: 'Enquete via Z-API não implementado' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/zapi/message/send/buttons
+ */
+router.post('/message/send/buttons', async (req, res) => {
+  try {
+    const { phone, body, buttons, header, footer } = req.body;
+    if (!phone || !body || !buttons?.length) {
+      return res.status(400).json({ success: false, error: 'phone, body e buttons são obrigatórios' });
+    }
+    const provider = getProvider(phone);
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando botões para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.sendButtons(phone, body, buttons, header, footer);
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+    return res.status(501).json({ success: false, provider: 'zapi', error: 'Botões via Z-API não implementado' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/zapi/message/send/list
+ */
+router.post('/message/send/list', async (req, res) => {
+  try {
+    const { phone, body, sections, buttonText, header, footer } = req.body;
+    if (!phone || !body || !sections?.length) {
+      return res.status(400).json({ success: false, error: 'phone, body e sections são obrigatórios' });
+    }
+    const provider = getProvider(phone);
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando lista para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.sendList(phone, body, sections, buttonText, header, footer);
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+    return res.status(501).json({ success: false, provider: 'zapi', error: 'Lista via Z-API não implementado' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/zapi/message/send/contact
+ */
+router.post('/message/send/contact', async (req, res) => {
+  try {
+    const { phone, contactName, contactPhone } = req.body;
+    if (!phone || !contactName || !contactPhone) {
+      return res.status(400).json({ success: false, error: 'phone, contactName e contactPhone são obrigatórios' });
+    }
+    const provider = getProvider(phone);
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Enviando contato para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.sendContact(phone, contactName, contactPhone);
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+    return res.status(501).json({ success: false, provider: 'zapi', error: 'Contato via Z-API não implementado' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PUT /api/zapi/message/edit
+ */
+router.put('/message/edit', async (req, res) => {
+  try {
+    const { phone, messageId, message } = req.body;
+    if (!phone || !messageId || !message) {
+      return res.status(400).json({ success: false, error: 'phone, messageId e message são obrigatórios' });
+    }
+    const provider = getProvider(phone);
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Editando mensagem ${messageId} para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.editMessage(phone, messageId, message);
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+    return res.status(501).json({ success: false, provider: 'zapi', error: 'Edição via Z-API não implementado' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/zapi/message/delete
+ */
+router.delete('/message/delete', async (req, res) => {
+  try {
+    const { messageId } = req.body;
+    if (!messageId) {
+      return res.status(400).json({ success: false, error: 'messageId é obrigatório' });
+    }
+    console.log(`📤 [Router] Deletando mensagem ${messageId} via WHAPI`);
+    const result = await whapiAdapter.deleteMessage(messageId);
+    result.provider = 'whapi';
+    return res.status(result.success ? 200 : 400).json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/zapi/chat/mark-read
+ */
+router.post('/chat/mark-read', async (req, res) => {
+  try {
+    const { phone, messageId } = req.body;
+    if (!phone || !messageId) {
+      return res.status(400).json({ success: false, error: 'phone e messageId são obrigatórios' });
+    }
+    const provider = getProvider(phone);
+    if (provider === 'whapi') {
+      console.log(`📤 [Router] Marcando lida ${messageId} para ${phone} via WHAPI (piloto)`);
+      const result = await whapiAdapter.markAsRead(phone, messageId);
+      result.provider = 'whapi';
+      return res.status(result.success ? 200 : 400).json(result);
+    }
+    return res.status(200).json({ success: true, provider: 'zapi', skipped: true, reason: 'mark-read Z-API não implementado' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
 // WEBHOOKS - Recebe eventos do Z-API e repassa para apps
 // ============================================================
 
